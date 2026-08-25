@@ -80,6 +80,19 @@
     text-decoration: none;
     font-weight: bold;
   }
+  .notice {
+    display: none;
+    margin-top: 16px;
+    padding: 14px 16px;
+    background: #fffbeb;
+    border: 1px solid #f59e0b;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 2;
+    color: #92400e;
+  }
+  .notice ul { margin: 0; padding-right: 18px; }
+  .notice li { margin-bottom: 4px; }
   .count { font-size: 12px; color: #6b7280; margin-top: 4px; }
 </style>
 </head>
@@ -115,6 +128,13 @@
   </form>
 
   <div class="msg" id="msg"></div>
+  <div class="notice" id="notice">
+    <ul>
+      <li>برای ترجمه‌های صرفاً ماشینی و هوش مصنوعی بدون ویرایش و تدوین، نمره منفی لحاظ خواهد شد.</li>
+      <li>زمان تحویل پروژه از زمان دریافت فایل ترجمه حداکثر ۵ روز است.</li>
+      <li>در صورت نیاز، به شماره ۰۹۹۶۲۳۷۶۲۷۷ (ایزدی) (ایتا) جهت ترجمه و تایپ پیغام دهید.</li>
+    </ul>
+  </div>
 </div>
 
 <script>
@@ -191,6 +211,7 @@ form.addEventListener('submit', async (e) => {
     msgEl.innerHTML = `ثبت شما با موفقیت انجام شد.<br><br>نام: ${payload.full_name}<br>شماره تماس: ${payload.phone}<br>فایل انتخابی: ${data.file_name}<br>` +
       `<a href="${data.file_url}" target="_blank" rel="noopener">دانلود فایل</a>`;
     msgEl.style.display = 'block';
+    document.getElementById('notice').style.display = 'block';
   } catch (err) {
     msgEl.className = 'msg error';
     msgEl.textContent = 'خطا در ارتباط با سرور. دوباره تلاش کنید.';
