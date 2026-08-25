@@ -4,10 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>انتخاب فایل ترجمه</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; }
   body {
-    font-family: Tahoma, Arial, sans-serif;
+    font-family: 'Vazirmatn', Tahoma, Arial, sans-serif;
     background: #f4f6f8;
     margin: 0;
     padding: 24px 16px;
@@ -186,7 +188,7 @@ form.addEventListener('submit', async (e) => {
 
     form.style.display = 'none';
     msgEl.className = 'msg success';
-    msgEl.innerHTML = `ثبت شما با موفقیت انجام شد.<br>فایل انتخابی: ${data.file_name}<br>` +
+    msgEl.innerHTML = `ثبت شما با موفقیت انجام شد.<br><br>نام: ${payload.full_name}<br>شماره تماس: ${payload.phone}<br>فایل انتخابی: ${data.file_name}<br>` +
       `<a href="${data.file_url}" target="_blank" rel="noopener">دانلود فایل</a>`;
     msgEl.style.display = 'block';
   } catch (err) {
