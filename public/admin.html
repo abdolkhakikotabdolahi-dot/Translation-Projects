@@ -4,9 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>پنل مدیریت</title>
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700&display=swap" rel="stylesheet">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Tahoma, Arial, sans-serif; background: #f4f6f8; color: #1f2937; }
+  body { font-family: 'Vazirmatn', Tahoma, Arial, sans-serif; background: #f4f6f8; color: #1f2937; }
   .login-box {
     max-width: 360px; margin: 80px auto; background: #fff;
     padding: 28px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); text-align: center;
@@ -17,7 +18,7 @@
     border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 15px;
   }
   .err { color: #b91c1c; font-size: 13px; margin-top: 6px; }
-  #panel { display: none; padding: 20px; max-width: 1100px; margin: 0 auto; }
+  #panel { display: none; padding: 20px; max-width: 1200px; margin: 0 auto; }
   .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
   .topbar h1 { font-size: 20px; }
   .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
@@ -45,6 +46,22 @@
   .badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; }
   .badge-green { background: #dcfce7; color: #166534; }
   .badge-red { background: #fee2e2; color: #991b1b; }
+
+  /* deadline indicator */
+  .deadline-wrap { min-width: 120px; }
+  .deadline-label { font-size: 12px; margin-bottom: 4px; display: flex; justify-content: space-between; }
+  .deadline-bar-bg { background: #e5e7eb; border-radius: 6px; height: 8px; overflow: hidden; }
+  .deadline-bar { height: 8px; border-radius: 6px; transition: width 0.3s; }
+  .bar-green { background: #16a34a; }
+  .bar-yellow { background: #f59e0b; }
+  .bar-orange { background: #ea580c; }
+  .bar-red { background: #dc2626; }
+  .days-left { font-size: 12px; margin-top: 3px; font-weight: bold; }
+  .days-green { color: #16a34a; }
+  .days-yellow { color: #f59e0b; }
+  .days-orange { color: #ea580c; }
+  .days-red { color: #dc2626; }
+
   .modal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
     z-index: 100; align-items: center; justify-content: center;
@@ -90,6 +107,7 @@
     <div class="stat"><b id="statTotal">-</b>کل ثبت‌نام‌ها</div>
     <div class="stat"><b id="statTaken">-</b>فایل‌های گرفته‌شده</div>
     <div class="stat"><b id="statAvailable">-</b>فایل‌های باقی‌مانده</div>
+    <div class="stat"><b id="statOverdue">-</b>منقضی‌شده</div>
   </div>
 
   <div class="tabs">
@@ -108,6 +126,7 @@
           <th>دانشگاه</th>
           <th>فایل انتخابی</th>
           <th>تاریخ ثبت</th>
+          <th>مهلت تحویل</th>
           <th>عملیات</th>
         </tr>
       </thead>
@@ -182,6 +201,54 @@ let adminPassword = '';
 let allFiles = [];
 let allSubmissions = [];
 
+const DEADLINE_DAYS = 5;
+
+function deadlineInfo(createdAt) {
+  const created = new Date(createdAt + 'Z');
+  const deadline = new Date(created.getTime() + DEADLINE_DAYS * 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const totalMs = DEADLINE_DAYS * 24 * 60 * 60 * 1000;
+  const elapsedMs = now - created;
+  const remainingMs = deadline - now;
+  const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+  const pct = Math.min(100, Math.max(0, (elapsedMs / totalMs) * 100));
+
+  let barClass, labelClass, label;
+  if (remainingMs <= 0) {
+    barClass = 'bar-red'; labelClass = 'days-red';
+    label = 'منقضی شده';
+  } else if (remainingDays <= 1) {
+    barClass = 'bar-red'; labelClass = 'days-red';
+    label = `${remainingDays} روز مانده`;
+  } else if (remainingDays <= 2) {
+    barClass = 'bar-orange'; labelClass = 'days-orange';
+    label = `${remainingDays} روز مانده`;
+  } else if (remainingDays <= 3) {
+    barClass = 'bar-yellow'; labelClass = 'days-yellow';
+    label = `${remainingDays} روز مانده`;
+  } else {
+    barClass = 'bar-green'; labelClass = 'days-green';
+    label = `${remainingDays} روز مانده`;
+  }
+
+  return { pct, barClass, labelClass, label, expired: remainingMs <= 0,
+    deadlineStr: deadline.toLocaleDateString('fa-IR') };
+}
+
+function deadlineHtml(createdAt) {
+  const { pct, barClass, labelClass, label, deadlineStr } = deadlineInfo(createdAt);
+  return `
+    <div class="deadline-wrap">
+      <div class="deadline-label">
+        <span>سررسید: ${deadlineStr}</span>
+      </div>
+      <div class="deadline-bar-bg">
+        <div class="deadline-bar ${barClass}" style="width:${pct}%"></div>
+      </div>
+      <div class="days-left ${labelClass}">${label}</div>
+    </div>`;
+}
+
 function showToast(msg, duration = 2500) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -215,21 +282,27 @@ async function login() {
 
 function renderSubmissions() {
   document.getElementById('statTotal').textContent = allSubmissions.length;
+  const overdue = allSubmissions.filter(r => deadlineInfo(r.created_at).expired).length;
+  document.getElementById('statOverdue').textContent = overdue;
+
   const rows = document.getElementById('subRows');
-  rows.innerHTML = allSubmissions.map((r, i) => `
-    <tr>
+  rows.innerHTML = allSubmissions.map((r, i) => {
+    const { expired } = deadlineInfo(r.created_at);
+    return `
+    <tr style="${expired ? 'background:#fff5f5' : ''}">
       <td>${i + 1}</td>
       <td>${r.full_name}</td>
       <td>${r.phone}</td>
       <td>${r.university}</td>
       <td>${r.file_name}</td>
       <td>${new Date(r.created_at + 'Z').toLocaleString('fa-IR')}</td>
+      <td>${deadlineHtml(r.created_at)}</td>
       <td style="display:flex;gap:6px;padding:8px 12px">
         <button class="btn btn-yellow" onclick="openEdit(${r.id})">ویرایش</button>
         <button class="btn btn-red" onclick="deleteSubmission(${r.id})">حذف</button>
       </td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 }
 
 async function loadFiles() {
@@ -268,13 +341,10 @@ async function openEdit(id) {
   document.getElementById('editName').value = sub.full_name;
   document.getElementById('editPhone').value = sub.phone;
   document.getElementById('editUniversity').value = sub.university;
-
-  // populate file select
   const sel = document.getElementById('editFileId');
   sel.innerHTML = allFiles.map(f =>
     `<option value="${f.id}" ${f.file_name === sub.file_name ? 'selected' : ''}>${f.file_name} ${f.status === 'taken' && f.file_name !== sub.file_name ? '(گرفته‌شده)' : ''}</option>`
   ).join('');
-
   document.getElementById('editModal').classList.add('open');
 }
 
@@ -282,7 +352,6 @@ async function saveEdit() {
   const id = document.getElementById('editId').value;
   const phone = document.getElementById('editPhone').value.trim();
   if (!/^09\d{9}$/.test(phone)) { showToast('شماره تماس نامعتبر است'); return; }
-
   const res = await fetch(`/api/admin/submission/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPassword },
@@ -337,12 +406,9 @@ async function saveNewFile() {
   const name = document.getElementById('newFileName').value.trim();
   const url = document.getElementById('newFileUrl').value.trim();
   if (!name || !url) { showToast('نام و لینک فایل الزامی است'); return; }
-
-  // convert Google Drive view link to direct download if needed
   let fileUrl = url;
   const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
   if (match) fileUrl = `https://drive.google.com/uc?export=download&id=${match[1]}`;
-
   const res = await fetch('/api/admin/file', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPassword },
