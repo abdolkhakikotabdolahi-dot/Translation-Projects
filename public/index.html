@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>انتخاب فایل ترجمه</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: Tahoma, Arial, sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 24px 16px;
+    color: #1f2937;
+  }
+  .card {
+    max-width: 480px;
+    margin: 0 auto;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    padding: 28px 24px;
+  }
+  h1 {
+    font-size: 20px;
+    margin: 0 0 6px;
+    text-align: center;
+  }
+  p.sub {
+    text-align: center;
+    color: #6b7280;
+    font-size: 13px;
+    margin: 0 0 24px;
+  }
+  label {
+    display: block;
+    font-size: 14px;
+    margin: 14px 0 6px;
+    font-weight: bold;
+  }
+  input, select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+  }
+  button {
+    width: 100%;
+    margin-top: 22px;
+    padding: 12px;
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+  }
+  button:disabled { background: #9ca3af; cursor: not-allowed; }
+  .msg {
+    margin-top: 16px;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    display: none;
+  }
+  .msg.error { background: #fee2e2; color: #991b1b; display: block; }
+  .msg.success { background: #dcfce7; color: #166534; display: block; }
+  .msg.success a {
+    display: inline-block;
+    margin-top: 10px;
+    background: #16a34a;
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    font-weight: bold;
+  }
+  .count { font-size: 12px; color: #6b7280; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>سامانه انتخاب فایل پروژه ترجمه</h1>
+  <p class="sub">لطفاً مشخصات خود را وارد و یک فایل انتخاب کنید</p>
+
+  <form id="form">
+    <label for="full_name">نام و نام خانوادگی</label>
+    <input type="text" id="full_name" required>
+
+    <label for="phone">شماره تماس</label>
+    <input type="tel" id="phone" placeholder="09XXXXXXXXX" pattern="09[0-9]{9}" required>
+
+    <label for="university">دانشگاه</label>
+    <select id="university" required>
+      <option value="" disabled selected>انتخاب کنید</option>
+      <option value="علمی کاربردی">علمی کاربردی</option>
+      <option value="اصفهان">اصفهان</option>
+      <option value="آزاد">آزاد</option>
+      <option value="غیر انتفاعی">غیر انتفاعی</option>
+    </select>
+
+    <label for="file_id">فایل ترجمه</label>
+    <select id="file_id" required>
+      <option value="" disabled selected>در حال بارگذاری...</option>
+    </select>
+    <div class="count" id="count"></div>
+
+    <button type="submit" id="submitBtn">ثبت انتخاب</button>
+  </form>
+
+  <div class="msg" id="msg"></div>
+</div>
+
+<script>
+const fileSelect = document.getElementById('file_id');
+const countEl = document.getElementById('count');
+const form = document.getElementById('form');
+const msgEl = document.getElementById('msg');
+const submitBtn = document.getElementById('submitBtn');
+
+async function loadFiles() {
+  fileSelect.innerHTML = '<option value="" disabled selected>در حال بارگذاری...</option>';
+  try {
+    const res = await fetch('/api/files');
+    const files = await res.json();
+    if (!files.length) {
+      fileSelect.innerHTML = '<option value="" disabled selected>فایلی باقی نمانده است</option>';
+      countEl.textContent = '';
+      submitBtn.disabled = true;
+      return;
+    }
+    fileSelect.innerHTML = '<option value="" disabled selected>انتخاب کنید</option>' +
+      files.map(f => `<option value="${f.id}">${f.file_name}</option>`).join('');
+    countEl.textContent = files.length + ' فایل باقی مانده';
+    submitBtn.disabled = false;
+  } catch (e) {
+    fileSelect.innerHTML = '<option value="" disabled selected>خطا در بارگذاری لیست</option>';
+  }
+}
+
+loadFiles();
+
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'در حال ثبت...';
+
+  const phone = document.getElementById('phone').value.trim();
+  if (!/^09\d{9}$/.test(phone)) {
+    msgEl.className = 'msg error';
+    msgEl.textContent = 'شماره تماس باید به فرمت 09XXXXXXXXX باشد.';
+    msgEl.style.display = 'block';
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'ثبت انتخاب';
+    return;
+  }
+
+  const payload = {
+    full_name: document.getElementById('full_name').value.trim(),
+    phone,
+    university: document.getElementById('university').value,
+    file_id: Number(fileSelect.value),
+  };
+
+  try {
+    const res = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      msgEl.className = 'msg error';
+      msgEl.textContent = data.error || 'خطایی رخ داد.';
+      msgEl.style.display = 'block';
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'ثبت انتخاب';
+      if (res.status === 409) loadFiles();
+      return;
+    }
+
+    form.style.display = 'none';
+    msgEl.className = 'msg success';
+    msgEl.innerHTML = `ثبت شما با موفقیت انجام شد.<br>فایل انتخابی: ${data.file_name}<br>` +
+      `<a href="${data.file_url}" target="_blank" rel="noopener">دانلود فایل</a>`;
+    msgEl.style.display = 'block';
+  } catch (err) {
+    msgEl.className = 'msg error';
+    msgEl.textContent = 'خطا در ارتباط با سرور. دوباره تلاش کنید.';
+    msgEl.style.display = 'block';
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'ثبت انتخاب';
+  }
+});
+</script>
+
+</body>
+</html>

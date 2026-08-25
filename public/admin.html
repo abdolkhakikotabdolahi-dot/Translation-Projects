@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>پنل مدیریت</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Tahoma, Arial, sans-serif; background: #f4f6f8; color: #1f2937; }
+  .login-box {
+    max-width: 360px; margin: 80px auto; background: #fff;
+    padding: 28px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); text-align: center;
+  }
+  .login-box h1 { margin-bottom: 16px; font-size: 20px; }
+  .login-box input {
+    width: 100%; padding: 10px 12px; margin: 8px 0 14px;
+    border: 1px solid #d1d5db; border-radius: 8px; font-family: inherit; font-size: 15px;
+  }
+  .err { color: #b91c1c; font-size: 13px; margin-top: 6px; }
+  #panel { display: none; padding: 20px; max-width: 1100px; margin: 0 auto; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .topbar h1 { font-size: 20px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tab {
+    padding: 8px 20px; border-radius: 8px; border: 1px solid #d1d5db;
+    background: #fff; cursor: pointer; font-family: inherit; font-size: 14px;
+  }
+  .tab.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .stats { display: flex; gap: 12px; margin-bottom: 18px; }
+  .stat { background: #fff; padding: 14px 18px; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); flex: 1; text-align: center; }
+  .stat b { display: block; font-size: 22px; }
+  .toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; flex-wrap: wrap; }
+  .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-family: inherit; font-size: 13px; }
+  .btn-blue { background: #2563eb; color: #fff; }
+  .btn-green { background: #16a34a; color: #fff; }
+  .btn-red { background: #dc2626; color: #fff; }
+  .btn-gray { background: #6b7280; color: #fff; }
+  .btn-yellow { background: #d97706; color: #fff; }
+  .section { display: none; }
+  .section.active { display: block; }
+  table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  th, td { padding: 10px 12px; text-align: right; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
+  th { background: #f9fafb; font-weight: bold; }
+  tr:last-child td { border-bottom: none; }
+  .badge { padding: 3px 10px; border-radius: 20px; font-size: 12px; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-red { background: #fee2e2; color: #991b1b; }
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+    z-index: 100; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: 12px; padding: 24px; width: 420px;
+    max-width: 95vw; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+  }
+  .modal h2 { margin-bottom: 16px; font-size: 17px; }
+  .modal label { display: block; font-size: 13px; margin: 10px 0 4px; font-weight: bold; }
+  .modal input, .modal select {
+    width: 100%; padding: 9px 11px; border: 1px solid #d1d5db;
+    border-radius: 8px; font-family: inherit; font-size: 14px;
+  }
+  .modal-actions { display: flex; gap: 8px; margin-top: 18px; justify-content: flex-end; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: #1f2937; color: #fff; padding: 10px 20px; border-radius: 8px;
+    font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 200; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- Login -->
+<div class="login-box" id="loginBox">
+  <h1>ورود مدیر</h1>
+  <input type="password" id="password" placeholder="رمز عبور" onkeydown="if(event.key==='Enter') login()">
+  <button class="btn btn-blue" style="width:100%;padding:10px" onclick="login()">ورود</button>
+  <div class="err" id="loginError"></div>
+</div>
+
+<!-- Panel -->
+<div id="panel">
+  <div class="topbar">
+    <h1>پنل مدیریت</h1>
+    <button class="btn btn-green" onclick="exportCsv()">خروجی CSV</button>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><b id="statTotal">-</b>کل ثبت‌نام‌ها</div>
+    <div class="stat"><b id="statTaken">-</b>فایل‌های گرفته‌شده</div>
+    <div class="stat"><b id="statAvailable">-</b>فایل‌های باقی‌مانده</div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('submissions')">ثبت‌نام‌ها</button>
+    <button class="tab" onclick="switchTab('files')">مدیریت فایل‌ها</button>
+  </div>
+
+  <!-- Submissions -->
+  <div class="section active" id="sec-submissions">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>نام و نام خانوادگی</th>
+          <th>شماره تماس</th>
+          <th>دانشگاه</th>
+          <th>فایل انتخابی</th>
+          <th>تاریخ ثبت</th>
+          <th>عملیات</th>
+        </tr>
+      </thead>
+      <tbody id="subRows"></tbody>
+    </table>
+  </div>
+
+  <!-- Files -->
+  <div class="section" id="sec-files">
+    <div class="toolbar">
+      <button class="btn btn-blue" onclick="openAddFile()">+ افزودن فایل جدید</button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>نام فایل</th>
+          <th>وضعیت</th>
+          <th>عملیات</th>
+        </tr>
+      </thead>
+      <tbody id="fileRows"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Edit Submission Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h2>ویرایش ثبت‌نام</h2>
+    <input type="hidden" id="editId">
+    <label>نام و نام خانوادگی</label>
+    <input type="text" id="editName">
+    <label>شماره تماس</label>
+    <input type="tel" id="editPhone" placeholder="09XXXXXXXXX">
+    <label>دانشگاه</label>
+    <select id="editUniversity">
+      <option value="علمی کاربردی">علمی کاربردی</option>
+      <option value="اصفهان">اصفهان</option>
+      <option value="آزاد">آزاد</option>
+      <option value="غیر انتفاعی">غیر انتفاعی</option>
+    </select>
+    <label>فایل انتخابی</label>
+    <select id="editFileId"></select>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('editModal')">انصراف</button>
+      <button class="btn btn-blue" onclick="saveEdit()">ذخیره</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add File Modal -->
+<div class="modal-overlay" id="addFileModal">
+  <div class="modal">
+    <h2>افزودن فایل جدید</h2>
+    <label>نام فایل</label>
+    <input type="text" id="newFileName" placeholder="مثلاً A-12345.pdf">
+    <label>لینک گوگل‌درایو</label>
+    <input type="url" id="newFileUrl" placeholder="https://drive.google.com/file/d/...">
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="closeModal('addFileModal')">انصراف</button>
+      <button class="btn btn-green" onclick="saveNewFile()">افزودن</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+let adminPassword = '';
+let allFiles = [];
+let allSubmissions = [];
+
+function showToast(msg, duration = 2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration);
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((el, i) => {
+    el.classList.toggle('active', (i === 0 && tab === 'submissions') || (i === 1 && tab === 'files'));
+  });
+  document.getElementById('sec-submissions').classList.toggle('active', tab === 'submissions');
+  document.getElementById('sec-files').classList.toggle('active', tab === 'files');
+}
+
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+async function login() {
+  const pw = document.getElementById('password').value;
+  const res = await fetch('/api/admin/submissions', { headers: { 'X-Admin-Password': pw } });
+  if (!res.ok) { document.getElementById('loginError').textContent = 'رمز عبور اشتباه است.'; return; }
+  adminPassword = pw;
+  sessionStorage.setItem('admin_pw', pw);
+  document.getElementById('loginBox').style.display = 'none';
+  document.getElementById('panel').style.display = 'block';
+  allSubmissions = await res.json();
+  renderSubmissions();
+  await loadFiles();
+  updateStats();
+}
+
+function renderSubmissions() {
+  document.getElementById('statTotal').textContent = allSubmissions.length;
+  const rows = document.getElementById('subRows');
+  rows.innerHTML = allSubmissions.map((r, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${r.full_name}</td>
+      <td>${r.phone}</td>
+      <td>${r.university}</td>
+      <td>${r.file_name}</td>
+      <td>${new Date(r.created_at + 'Z').toLocaleString('fa-IR')}</td>
+      <td style="display:flex;gap:6px;padding:8px 12px">
+        <button class="btn btn-yellow" onclick="openEdit(${r.id})">ویرایش</button>
+        <button class="btn btn-red" onclick="deleteSubmission(${r.id})">حذف</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function loadFiles() {
+  const res = await fetch('/api/admin/files', { headers: { 'X-Admin-Password': adminPassword } });
+  if (!res.ok) return;
+  allFiles = await res.json();
+  renderFiles();
+  updateStats();
+}
+
+function renderFiles() {
+  const rows = document.getElementById('fileRows');
+  rows.innerHTML = allFiles.map((f, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${f.file_name}</td>
+      <td><span class="badge ${f.status === 'available' ? 'badge-green' : 'badge-red'}">${f.status === 'available' ? 'موجود' : 'گرفته‌شده'}</span></td>
+      <td style="display:flex;gap:6px;padding:8px 12px">
+        ${f.status === 'taken' ? `<button class="btn btn-green" onclick="releaseFile(${f.id})">آزاد کردن</button>` : ''}
+      </td>
+    </tr>
+  `).join('');
+}
+
+function updateStats() {
+  const taken = allFiles.filter(f => f.status === 'taken').length;
+  const available = allFiles.filter(f => f.status === 'available').length;
+  document.getElementById('statTaken').textContent = taken;
+  document.getElementById('statAvailable').textContent = available;
+}
+
+async function openEdit(id) {
+  const sub = allSubmissions.find(s => s.id === id);
+  if (!sub) return;
+  document.getElementById('editId').value = id;
+  document.getElementById('editName').value = sub.full_name;
+  document.getElementById('editPhone').value = sub.phone;
+  document.getElementById('editUniversity').value = sub.university;
+
+  // populate file select
+  const sel = document.getElementById('editFileId');
+  sel.innerHTML = allFiles.map(f =>
+    `<option value="${f.id}" ${f.file_name === sub.file_name ? 'selected' : ''}>${f.file_name} ${f.status === 'taken' && f.file_name !== sub.file_name ? '(گرفته‌شده)' : ''}</option>`
+  ).join('');
+
+  document.getElementById('editModal').classList.add('open');
+}
+
+async function saveEdit() {
+  const id = document.getElementById('editId').value;
+  const phone = document.getElementById('editPhone').value.trim();
+  if (!/^09\d{9}$/.test(phone)) { showToast('شماره تماس نامعتبر است'); return; }
+
+  const res = await fetch(`/api/admin/submission/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPassword },
+    body: JSON.stringify({
+      full_name: document.getElementById('editName').value.trim(),
+      phone,
+      university: document.getElementById('editUniversity').value,
+      file_id: Number(document.getElementById('editFileId').value),
+    }),
+  });
+  const data = await res.json();
+  if (!res.ok) { showToast(data.error || 'خطا در ذخیره'); return; }
+  closeModal('editModal');
+  showToast('ثبت‌نام با موفقیت ویرایش شد');
+  const res2 = await fetch('/api/admin/submissions', { headers: { 'X-Admin-Password': adminPassword } });
+  allSubmissions = await res2.json();
+  renderSubmissions();
+  await loadFiles();
+}
+
+async function deleteSubmission(id) {
+  if (!confirm('آیا از حذف این ثبت‌نام اطمینان دارید؟ فایل انتخابی دانشجو آزاد می‌شود.')) return;
+  const res = await fetch(`/api/admin/submission/${id}`, {
+    method: 'DELETE',
+    headers: { 'X-Admin-Password': adminPassword },
+  });
+  const data = await res.json();
+  if (!res.ok) { showToast(data.error || 'خطا در حذف'); return; }
+  showToast('ثبت‌نام حذف شد');
+  allSubmissions = allSubmissions.filter(s => s.id !== id);
+  renderSubmissions();
+  await loadFiles();
+}
+
+async function releaseFile(id) {
+  const res = await fetch(`/api/admin/release/${id}`, {
+    method: 'POST',
+    headers: { 'X-Admin-Password': adminPassword },
+  });
+  if (!res.ok) { showToast('خطا در آزاد کردن فایل'); return; }
+  showToast('فایل آزاد شد');
+  await loadFiles();
+}
+
+function openAddFile() {
+  document.getElementById('newFileName').value = '';
+  document.getElementById('newFileUrl').value = '';
+  document.getElementById('addFileModal').classList.add('open');
+}
+
+async function saveNewFile() {
+  const name = document.getElementById('newFileName').value.trim();
+  const url = document.getElementById('newFileUrl').value.trim();
+  if (!name || !url) { showToast('نام و لینک فایل الزامی است'); return; }
+
+  // convert Google Drive view link to direct download if needed
+  let fileUrl = url;
+  const match = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (match) fileUrl = `https://drive.google.com/uc?export=download&id=${match[1]}`;
+
+  const res = await fetch('/api/admin/file', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Admin-Password': adminPassword },
+    body: JSON.stringify({ file_name: name, file_url: fileUrl }),
+  });
+  const data = await res.json();
+  if (!res.ok) { showToast(data.error || 'خطا در افزودن فایل'); return; }
+  closeModal('addFileModal');
+  showToast('فایل جدید اضافه شد');
+  await loadFiles();
+}
+
+function exportCsv() {
+  window.open('/api/admin/export?password=' + encodeURIComponent(adminPassword), '_blank');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const saved = sessionStorage.getItem('admin_pw');
+  if (saved) { document.getElementById('password').value = saved; login(); }
+});
+</script>
+</body>
+</html>
